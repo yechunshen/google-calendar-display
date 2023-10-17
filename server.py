@@ -1,7 +1,7 @@
 import gflags
 import httplib2
 from oauth2client import tools
-from apiclient.discovery import build
+from googleapiclient.discovery import build
 from oauth2client.file import Storage
 from oauth2client.client import OAuth2WebServerFlow
 
@@ -18,48 +18,24 @@ from flask import render_template
 
 app = Flask(__name__)
 FLAGS = gflags.FLAGS
-
-# had to install:
-# sudo apt-get update
-# sudo apt-get install python-pip
-# sudo pip install --upgrade google-api-python-client python-gflags python-dateutil Flask pytz
-
-# Set up a Flow object to be used if we need to authenticate. This
-# sample uses OAuth 2.0, and we set up the OAuth2WebServerFlow with
-# the information it needs to authenticate. Note that it is called
-# the Web Server Flow, but it can also handle the flow for native
-# applications
-# The client_id and client_secret can be found in Google Developers Console
 FLOW = OAuth2WebServerFlow(
     client_id=calendar_config.CLIENT_ID,
     client_secret=calendar_config.CLIENT_SECRET,
     scope=calendar_config.SCOPE,
     user_agent=calendar_config.USER_AGENT)
 
-# To disable the local server feature, uncomment the following line:
-# FLAGS.auth_local_webserver = False
-
-# If the Credentials don't exist or are invalid, run through the native client
-# flow. The Storage object will ensure that if successful the good
-# Credentials will get written back to a file.
-storage = Storage('calendar.dat')
+storage = Storage('calendar-1.dat')
 credentials = storage.get()
 if credentials is None or credentials.invalid == True:
     credentials = tools.run_flow(FLOW, storage)
 
-# Create an httplib2.Http object to handle our HTTP requests and authorize it
-# with our good Credentials.
 http = httplib2.Http()
 http = credentials.authorize(http)
 
-# Build a service object for interacting with the API. Visit
-# the Google Developers Console
-# to get a developerKey for your own application.
 service = build(serviceName='calendar', version='v3', http=http,
                 developerKey=calendar_config.DEVELOPER_KEY)
 
 la = pytz.timezone("Asia/Shanghai")
-# la = pytz.timezone("America/Los_Angeles")
 
 
 def create_time_string(dt):
@@ -79,7 +55,6 @@ def create_time_string(dt):
         return '%s %s and %s %s' % (hours, h, minutes, m)
 
 
-# This method has a very sub-optimal approach to time zones.
 @app.route('/calendars')
 def calendars():
     calendars = {}
@@ -99,7 +74,6 @@ def calendars():
             items.append({'id': calendar_list_entry['id']})
             free_rooms.append(calendar_list_entry['id'])
 
-    # store this to a local file
     with open('calendars.json', mode='w') as calendar_file:
         json.dump({value: key for key, value in calendars.items()}, calendar_file)
 
@@ -132,12 +106,10 @@ def calendars():
                            now=start_time.strftime("%A %e %B %Y, %l:%M%p"),
                            free_rooms=[calendars[f] for f in free_rooms])
 
+
 @app.route('/user/<user_email>')
 def user(user_email):
-    # 获取 user_name 对应的 Google 日历会议信息
     meetings = get_user_meetings(user_email)
-
-    # 渲染 user.html 模板，并传递 meetings 列表
     return render_template('user.html', meetings=meetings, user_name=user_email)
 
 
@@ -153,7 +125,9 @@ def get_user_meetings(user_email):
     ).execute()
 
     # 从 API 响应中提取会议信息
-    all_meetings = events_result.get('items', [])
+    # all_meetings = events_result.get('items', [])
+    all_meetings = [event for event in events_result.get('items', []) if event.get('status') != 'cancelled']
+
     meetings_by_creator = [event for event in all_meetings if event['creator']['email'] == 'hugo.gomez@smartnews.com']
 
     return meetings_by_creator
@@ -201,7 +175,7 @@ def get_events(room_name):
     next_end = None
     status = "FREE"
 
-    for event in events['items']:
+    for event in [e for e in events['items'] if e.get('status') != 'cancelled']:
         start = dateutil.parser.parse(event['start']['dateTime'])
         end = dateutil.parser.parse(event['end']['dateTime'])
         start = start.astimezone(now.tzinfo)
