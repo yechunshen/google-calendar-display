@@ -24,7 +24,7 @@ FLOW = OAuth2WebServerFlow(
     scope=calendar_config.SCOPE,
     user_agent=calendar_config.USER_AGENT)
 
-storage = Storage('calendar-1.dat')
+storage = Storage('calendar.dat')
 credentials = storage.get()
 if credentials is None or credentials.invalid == True:
     credentials = tools.run_flow(FLOW, storage)
@@ -176,10 +176,19 @@ def get_events(room_name):
     status = "FREE"
 
     for event in [e for e in events['items'] if e.get('status') != 'cancelled']:
+        declined = False
+        for attendee in event['attendees']:
+            if attendee['responseStatus'] == 'declined' and 'calendar' in attendee['email'] and 'WeWork' in attendee['displayName']:
+                print(attendee)
+                declined = True
+                break
+        if declined == True:
+            continue
         start = dateutil.parser.parse(event['start']['dateTime'])
         end = dateutil.parser.parse(event['end']['dateTime'])
         start = start.astimezone(now.tzinfo)
         end = end.astimezone(now.tzinfo)
+
         if event['creator'].get('displayName'):
             event_creator = event['creator']['displayName']
         else:
