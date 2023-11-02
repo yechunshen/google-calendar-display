@@ -1,3 +1,5 @@
+import time
+
 import gflags
 import httplib2
 from oauth2client import tools
@@ -177,9 +179,9 @@ def get_events(room_name):
 
     for event in [e for e in events['items'] if e.get('status') != 'cancelled']:
         declined = False
+        # print(event)
         for attendee in event['attendees']:
             if attendee['responseStatus'] == 'declined' and 'calendar' in attendee['email'] and 'WeWork' in attendee['displayName']:
-                print(attendee)
                 declined = True
                 break
         if declined == True:
@@ -188,13 +190,24 @@ def get_events(room_name):
         end = dateutil.parser.parse(event['end']['dateTime'])
         start = start.astimezone(now.tzinfo)
         end = end.astimezone(now.tzinfo)
-
+        private = False
+        try:
+            print(event['visibility'])
+            private = True
+        except:
+            pass
+        try:
+            summary = events['summary']
+        except:
+            summary = ''
+        if private == True:
+            summary = 'private meeting'
         if event['creator'].get('displayName'):
             event_creator = event['creator']['displayName']
         else:
             event_creator = event['creator']['email']
         if now <= end:
-            items.append({'name': event['summary'],
+            items.append({'name': summary,
                           'creator': event_creator,
                           'start': start.strftime("%l:%M%p"),
                           'end': end.strftime("%l:%M%p"),
@@ -213,7 +226,7 @@ def get_events(room_name):
     if status == "FREE" and next_start and next_start < timedelta(minutes=15):
         status = "SOON"
 
-    return {'room': events['summary'],
+    return {'room': summary,
             'status': status,
             'now': now.strftime("%A %e %B %Y, %l:%M%p"),
             'events': items,
